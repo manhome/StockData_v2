@@ -1,0 +1,207 @@
+
+R version 4.0.3 (2020-10-10) -- "Bunny-Wunnies Freak Out"
+Copyright (C) 2020 The R Foundation for Statistical Computing
+Platform: x86_64-w64-mingw32/x64 (64-bit)
+
+R is free software and comes with ABSOLUTELY NO WARRANTY.
+You are welcome to redistribute it under certain conditions.
+Type 'license()' or 'licence()' for distribution details.
+
+R is a collaborative project with many contributors.
+Type 'contributors()' for more information and
+'citation()' on how to cite R or R packages in publications.
+
+Type 'demo()' for some demos, 'help()' for on-line help, or
+'help.start()' for an HTML browser interface to help.
+Type 'q()' to quit R.
+
+> library(openxlsx)
+Warning message:
+package 'openxlsx' was built under R version 4.0.5 
+> library(XML)
+Warning message:
+package 'XML' was built under R version 4.0.5 
+> library(xts)
+Loading required package: zoo
+
+Attaching package: 'zoo'
+
+The following objects are masked from 'package:base':
+
+    as.Date, as.Date.numeric
+
+Warning message:
+package 'zoo' was built under R version 4.0.5 
+> library(lubridate)
+
+Attaching package: 'lubridate'
+
+The following objects are masked from 'package:base':
+
+    date, intersect, setdiff, union
+
+> library(stringr)
+> library(dplyr)
+
+Attaching package: 'dplyr'
+
+The following objects are masked from 'package:xts':
+
+    first, last
+
+The following objects are masked from 'package:stats':
+
+    filter, lag
+
+The following objects are masked from 'package:base':
+
+    intersect, setdiff, setequal, union
+
+Warning message:
+package 'dplyr' was built under R version 4.0.5 
+> library(DBI)
+> library(RSQLite)
+Warning message:
+package 'RSQLite' was built under R version 4.0.5 
+> 
+> chrOS <- Sys.getenv("OS");
+> if (length(grep(pattern="windows", chrOS, ignore.case=TRUE)) > 0) {
++    chrSrcDrive <- "F:"
++ } else {
++    chrSrcDrive <- "/media/hdd"
++ }
+> 
+> source(file.path(chrSrcDrive, "App/Lib/R/qUtility.R"), local=TRUE, echo=FALSE)
+> source(file.path(chrSrcDrive, "App/Lib/R/qDB.R"), local=TRUE, echo=FALSE)
+> source(file.path(chrSrcDrive, "App/R/StockData_v2/qDBSQLite_StockPrice.R"), local=TRUE, echo=FALSE)
+> 
+> qMain <- function(chrFileParam)
++ {
++     dtTimeBegin_F <- Sys.time();
++     cat(sprintf("Get parameter file '%s' began at %s.\n", basename(chrFileParam), dtTimeBegin_F));
++ 
++     # Read parameter file
++     qReadXMLParamFile(chrFileParam);
++ 
++     chrFileSQL <<- dfParam.file_sql[[1]];
++     chrFileStock <<- dfParam.file_stock[[1]];
++ 
++     # Read stored SQL
++ #    qReadXMLParamFile(chrFileSQL);
++ 
++ #    lstSQL <<- sapply(dfParam.sql,
++ #                FUN=function(x) {
++ #                    x <- gsub(pattern="[[:blank:]]|[^[:print:]]", " ", x)
++ #                    x <- gsub(pattern="[[:blank:]]{2,}", " ", x)
++ #                    x <- str_trim(x)
++ #                    return (x)
++ #                }, simplify=FALSE);
++ 
++     tmp_chrSheets <- c("stock", "etf");
++ #    tmp_obj <- readWorksheetFromFile(chrFileStock, colTypes="character", sheet=tmp_chrSheets);
++     # openxlsx::readWorkbook only accepts 1 sheet each time
++     # Set simplify=FALSE to return a list of data.frame
++     tmp_obj <- sapply(tmp_chrSheets, function(x) readWorkbook(chrFileStock, sheet=x),
++                 simplify=FALSE, USE.NAMES=FALSE)
++     tmp_obj <- do.call("rbind", tmp_obj);
++ 
++     dbconn <<- dbConnect(SQLite(), "");
++ 
++     on.exit(
++         tryCatch(
++             dbDisconnect(dbconn),
++             error=function(e) {
++                 cat(sprintf("\t%s\n", e));
++             })
++     );
++ 
++ #    chrSQL <- lstSQL$attach_db_stocks
++     chrSQL <- "ATTACH DATABASE 'F:\\App\\db\\test\\hk_stocks.db' AS stocks"
++     rc <- tryCatch(
++             qDB.SendStatement(dbconn, chrSQL),
++             error=function(e) {
++                 cat(sprintf("\t%s\n", e));
++             })
++ 
++     tryCatch(
++         qDBSQLite.Stocks_Update(dbconn, dfData=tmp_obj),
++         error=function(e) {
++             cat(sprintf("\t%s\n", e));
++         })
++ 
++     tryCatch(
++         dbDisconnect(dbconn),
++         error=function(e) {
++             cat(sprintf("\t%s\n", e));
++         })
++ 
++     dtTimeEnd_F <- Sys.time();
++     cat(sprintf("Get parameter file '%s' finished at %s.\n", basename(chrFileParam), dtTimeBegin_F));
++     print(difftime(dtTimeEnd_F, dtTimeBegin_F));
++ 
++     return (0);
++ }
+> 
+> #######
+> # Main
+> #######
+> # trailingOnly=TRUE means that only arguments after --args are returned
+> # if trailingOnly=FALSE then you got:
+> # [1] "--no-restore" "--no-save" "--args" "2010-01-28" "example" "100"
+> #Debug <- function() {
+> args <- commandArgs(trailingOnly=TRUE);
+> cat(sprintf("Input Parameter = %s\n", args));
+Input Parameter = _sys_param_HK_UpdateStocks.xml
+> 
+> if (length(args) == 0) {
++     chrCmd <- "Invalid command. e.g. <prompt>command.bat param.xml"
++     print(chrCmd);
++     quit(save="no", status=-1);
++ } # if (length(args
+> 
+> chrFileParam <- args[1];
+> 
+> rc <- qMain(chrFileParam);
+Get parameter file '_sys_param_HK_UpdateStocks.xml' began at 2021-11-21 18:38:40.
+	Read parameter section 'file_stock'
+	Read parameter section 'file_sql'
+		Params = {, ...}
+		0 rows affected
+	Create Table tmpStocks
+	Delete from tmpStocks
+		Params = {, ...}
+		137 rows affected
+	Insert from tmpStocks
+		Params = {, ...}
+		626 rows affected
+Get parameter file '_sys_param_HK_UpdateStocks.xml' finished at 2021-11-21 18:38:40.
+Time difference of 0.4498289 secs
+Warning messages:
+1: In result_fetch(res@ptr, n = n) :
+  SQL statements must be issued with dbExecute() or dbSendStatement() instead of dbGetQuery() or dbSendQuery().
+2: Closing open result set, pending rows 
+3: In result_fetch(res@ptr, n = n) :
+  SQL statements must be issued with dbExecute() or dbSendStatement() instead of dbGetQuery() or dbSendQuery().
+4: Closing open result set, pending rows 
+5: In result_fetch(res@ptr, n = n) :
+  SQL statements must be issued with dbExecute() or dbSendStatement() instead of dbGetQuery() or dbSendQuery().
+6: Closing open result set, pending rows 
+7: In connection_release(conn@ptr) : Already disconnected
+> if (rc != 0) {
++     quit(save="no", status=rc);
++ } # if (rc
+> #} # Debug
+> 
+> ########
+> # Debug
+> ########
+> testDebug <- function()
++ {
++     setwd("F:/App/R/StockData_v2")
++     chrFileParam <- "_sys_param_HK_UpdateStocks.xml"
++     rc <- qMain(chrFileParam)
++ }
+> 
+> proc.time()
+   user  system elapsed 
+   1.45    0.32    1.93 

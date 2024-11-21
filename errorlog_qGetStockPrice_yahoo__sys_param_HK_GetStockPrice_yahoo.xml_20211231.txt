@@ -1,0 +1,439 @@
+
+R version 4.0.3 (2020-10-10) -- "Bunny-Wunnies Freak Out"
+Copyright (C) 2020 The R Foundation for Statistical Computing
+Platform: x86_64-w64-mingw32/x64 (64-bit)
+
+R is free software and comes with ABSOLUTELY NO WARRANTY.
+You are welcome to redistribute it under certain conditions.
+Type 'license()' or 'licence()' for distribution details.
+
+R is a collaborative project with many contributors.
+Type 'contributors()' for more information and
+'citation()' on how to cite R or R packages in publications.
+
+Type 'demo()' for some demos, 'help()' for on-line help, or
+'help.start()' for an HTML browser interface to help.
+Type 'q()' to quit R.
+
+> library(XML)
+Warning message:
+package 'XML' was built under R version 4.0.5 
+> library(xts)
+Loading required package: zoo
+
+Attaching package: 'zoo'
+
+The following objects are masked from 'package:base':
+
+    as.Date, as.Date.numeric
+
+Warning message:
+package 'zoo' was built under R version 4.0.5 
+> library(lubridate)
+
+Attaching package: 'lubridate'
+
+The following objects are masked from 'package:base':
+
+    date, intersect, setdiff, union
+
+> library(stringr)
+> library(dplyr)
+
+Attaching package: 'dplyr'
+
+The following objects are masked from 'package:xts':
+
+    first, last
+
+The following objects are masked from 'package:stats':
+
+    filter, lag
+
+The following objects are masked from 'package:base':
+
+    intersect, setdiff, setequal, union
+
+Warning message:
+package 'dplyr' was built under R version 4.0.5 
+> library(DBI)
+> library(RSQLite)
+Warning message:
+package 'RSQLite' was built under R version 4.0.5 
+> library(quantmod)
+Loading required package: TTR
+Registered S3 method overwritten by 'quantmod':
+  method            from
+  as.zoo.data.frame zoo 
+> library(openxlsx)
+Warning message:
+package 'openxlsx' was built under R version 4.0.5 
+> 
+> chrOS <- Sys.getenv("OS")
+> if (length(grep(pattern="windows", chrOS, ignore.case=TRUE)) > 0) {
++    chrSrcDrive <- "F:"
++ } else {
++    chrSrcDrive <- "/media/hdd"
++ }
+> 
+> source(file.path(chrSrcDrive, "App/Lib/R/qUtility.R"), local=TRUE, echo=FALSE)
+> source(file.path(chrSrcDrive, "App/Lib/R/qDB.R"), local=TRUE, echo=FALSE)
+> source(file.path(chrSrcDrive, "App/R/StockData_v2/qDBSQLite_StockPrice.R"), local=TRUE, echo=FALSE)
+> 
+> Init <- function()
++ {
++     tmp_objNames <- c("dfYahoo")
++     for (i in 1:length(tmp_objNames)) {
++         tmp_objName <- tmp_objNames[i]
++         if (!exists(tmp_objName, where=pos.rdata_save, inherits=FALSE)) {
++             assign(tmp_objName, NULL, pos=pos.rdata_save)
++         } # if
++     } # for (i
++ }
+> 
+> qMain <- function(chrFileParam, dtStart, dtEnd)
++ {
++     dtTimeBegin_F <- Sys.time()
++     cat(sprintf("Get parameter file '%s' began at %s.\n", basename(chrFileParam), dtTimeBegin_F))
++ 
++     cat(sprintf("Read parameter file '%s'.\n", chrFileParam))
++ 
++     if (!file.exists(chrFileParam)) {
++         cat(sprintf("Parameter file '%s' does not exist.\n", chrFileParam))
++         return (-1)
++     } # if
++ 
++     # Read parameter file
++     qReadXMLParamFile(chrFileParam)
++ 
++     chrrdata_save <<- dfParam.rdata_save[[1]]
++     chrFilePattern <<- dfParam.filepattern[[1]]
++     chrFileSQL <<- dfParam.file_sql[[1]]
++ 
++ #    # Read stored SQL
++ #    qReadXMLParamFile(chrFileSQL)
++ 
++ #    lstSQL <<- sapply(dfParam.sql,
++ #                FUN=function(x) {
++ #                    x <- gsub(pattern="[[:blank:]]|[^[:print:]]", " ", x)
++ #                    x <- gsub(pattern="[[:blank:]]{2,}", " ", x)
++ #                    x <- str_trim(x)
++ #                    return (x)
++ #                }, simplify=FALSE)
++ 
++     if (!file.exists(chrrdata_save)) {
++       save(file=chrrdata_save)
++     } # if
++     pos.rdata_save <<- qAttach.rdata(chrrdata_save)
++ 
++     Init()
++ 
++     dbconn <<- dbConnect(SQLite(), "")
++ 
++     on.exit(
++         tryCatch(
++             dbDisconnect(dbconn),
++             error=function(e) {
++                 cat(sprintf("\t%s\n", e))
++         })
++     )
++ 
++ #    chrSQL <- lstSQL$attach_db_stocks
++     chrSQL <- "ATTACH DATABASE 'F:\\App\\db\\test\\hk_stocks.db' AS stocks"
++     rc <- tryCatch(
++             qDB_SendStatement(dbconn, chrSQL),
++             error=function(e) {
++                 cat(sprintf("\t%s\n", e))
++             })
++ 
++ #    chrSQL <- lstSQL$attach_db_stockprices
++     chrSQL <- "ATTACH DATABASE 'F:\\App\\db\\test\\hk_stockprices.db' AS stockprices"
++     rc <- tryCatch(
++             qDB_SendStatement(dbconn, chrSQL),
++             error=function(e) {
++                 cat(sprintf("\t%s\n", e))
++             })
++ 
++ #    chrSQL <- lstSQL$attach_db_yahoo
++     chrSQL <- "ATTACH DATABASE 'F:\\App\\db\\test\\hk_yahoo.db' AS yahoo"
++     rc <- tryCatch(
++             qDB_SendStatement(dbconn, chrSQL),
++             error=function(e) {
++                 cat(sprintf("\t%s\n", e))
++             })
++ 
++ #    chSQL <- lstSQL$attach_db_quandl
++ #    chrSQL <- "ATTACH DATABASE 'F:\\App\\db\\test\\hk_quandl.db' AS quandl"
++ #    rc <- tryCatch(
++ #            qDB_SendStatement(dbconn, chrSQL),
++ #            error=function(e) {
++ #                cat(sprintf("\t%s\n", e))
++ #            })
++ 
++ #    chrSQL <- lstSQL$YahooChg_Select_MaxDate
++     chrSQL <- "SELECT a1.SecID_yahoo, a1.SecID, a1.Exch_yahoo, 
++                     IFNULL((SELECT MAX(PriceDate) FROM YahooChg a2 
++                         WHERE a2.SecID = a1.SecID_yahoo 
++                         AND a2.Volume != 0
++                         AND a2.PriceDate < '%s'), '1900-01-01') AS PriceDate 
++                 FROM Stocks a1"
++     chrSQL <- sprintf(chrSQL, format(dtStart, '%Y-%m-%d'))
++ 
++     tmp_dfMaxDate <- tryCatch(
++                         qDB_SendStatement(dbconn, chrSQL),
++                         error=function(e) {
++                             cat(sprintf("\t%s\n", e))
++                         })
++ 
++     tmp_chrKeys <- c("SecID", "PriceDate")
++     tmp_dfYahoo <- NULL
++ 
++ #    n <- nrow(tmp_dfMaxDate)
++     n <- 20
++     for (i in 1:n) {
++         if (i%%100 < 1) cat(sprintf("\t%.2f pct completed.\n", 100*i/n))
++ 
++         tmp_chrExch_yahoo <- tmp_dfMaxDate$Exch_yahoo[i]
++         tmp_chrSecID <- tmp_dfMaxDate$SecID[i]
++         tmp_chrSecID_yahoo <- tmp_dfMaxDate$SecID_yahoo[i]
++         tmp_chrStartDate <- tmp_dfMaxDate$PriceDate[i]
++         tmp_chrEndDate <- format(dtEnd)
++ 
++         cat(sprintf("\tProcess %s\n", tmp_chrSecID_yahoo))
++         tmp_obj <- tryCatch(
++                     getSymbols.yahoo(tmp_chrSecID_yahoo,
++                         from=tmp_chrStartDate,
++                         to=tmp_chrEndDate,
++                         auto.assign=FALSE),
++                     error=function(e) {
++                         cat(sprintf("\t%s\n", e))
++                         return (NULL)
++                     })
++ 
++         if (class(tmp_obj)=="try-error") next
++         if (is.null(tmp_obj)) next
++         if (nrow(tmp_obj)==0) next
++ 
++         # change colnames to upper case
++         names(tmp_obj) <- toupper(names(tmp_obj))
++ 
++         # trim symbol from raw column names
++         names(tmp_obj) <- sub(pattern=paste0(tmp_chrSecID_yahoo, "."), "", names(tmp_obj), fixed=TRUE)
++         tmp_df <- as.data.frame(tmp_obj, stringsAsFactors=FALSE)
++         tmp_df$SecID <- tmp_chrSecID_yahoo
++         tmp_df$PriceDate <- format(index(tmp_obj))
++         tmp_df <- tmp_df[union(tmp_chrKeys, setdiff(names(tmp_df), tmp_chrKeys))]
++         row.names(tmp_df) <- NULL
++ 
++         tmp_chrMinDate <- format(min(as.Date(tmp_df$PriceDate), na.rm=TRUE), "%Y%m%d")
++         tmp_chrMaxDate <- format(max(as.Date(tmp_df$PriceDate), na.rm=TRUE), "%Y%m%d")
++         tmp_chrFile <- sprintf(chrFilePattern, tmp_chrExch_yahoo,
++                             tmp_chrSecID, tmp_chrMinDate, tmp_chrMaxDate)
++         write.csv(tmp_df, tmp_chrFile, row.names=FALSE, na="")
++ 
++         tmp_dfYahoo <- rbind(tmp_dfYahoo, tmp_df)
++         row.names(tmp_dfYahoo) <- NULL
++     } # for (i
++ 
++     # simple check for duplicate-key records
++     tmp_dfCheck <- tmp_dfYahoo %>%
++                     group_by(SecID, PriceDate) %>%
++                     summarize(Count=n()) %>%
++                     filter(Count > 1)
++     if (nrow(tmp_dfCheck) > 0) {
++         cat(sprintf("\tDuplicate-Key SecID:\n"))
++         with(tmp_dfCheck, cat(sprintf("\t{%s, %s}\n", SecID, PriceDate)))
++         cat(sprintf("\tPlease check! Those SecID will be skipped!\n"))
++         tmp_dfYahoo <- tmp_dfYahoo %>%
++                         filter(!(SecID %in% tmp_dfCheck$SecID))
++     } # if
++ 
++     row.names(tmp_dfYahoo) <- NULL
++     dfYahoo <<- tmp_dfYahoo
++     qSave.pos(pos.rdata_save)
++ 
++     tryCatch(
++         qDBSQLite_YahooChg_Update(dbconn, dfData=tmp_dfYahoo),
++         error=function(e) {
++             cat(sprintf("\t%s\n", e))
++         })
++ 
++     tryCatch(
++         qDBSQLite_YahooLastPrice_Update(dbconn, dfData=tmp_dfYahoo),
++         error=function(e) {
++             cat(sprintf("\t%s\n", e))
++         })
++ 
++     tryCatch(
++         qDBSQLite_StockPrices_Update(dbconn),
++         error=function(e) {
++             cat(sprintf("\t%s\n", e))
++         })
++ 
++ #    tryCatch(
++ #        qDBSQLite_StockPrices_Turnover_Update(dbconn),
++ #        error=function(e) {
++ #            cat(sprintf("\t%s\n", e))
++ #        })
++ 
++     tryCatch(
++         dbDisconnect(dbconn),
++         error=function(e) {
++             cat(sprintf("\t%s\n", e))
++         })
++ 
++     dtTimeEnd_F <- Sys.time()
++     cat(sprintf("Get parameter file '%s' finished at %s.\n", basename(chrFileParam), dtTimeBegin_F))
++     print(difftime(dtTimeEnd_F, dtTimeBegin_F))
++ 
++     return (0)
++ }
+> 
+> #######
+> # Main
+> #######
+> # trailingOnly=TRUE means that only arguments after --args are returned
+> # if trailingOnly=FALSE then you got:
+> # [1] "--no-restore" "--no-save" "--args" "2010-01-28" "example" "100"
+> # Debug (begin)
+> #Debug <- function() {
+> args <- commandArgs(trailingOnly=TRUE)
+> cat(sprintf("Input Parameter = %s\n", args))
+Input Parameter = _sys_param_HK_GetStockPrice_yahoo.xml
+ Input Parameter = 20200101
+ Input Parameter = 20210310
+> 
+> if (length(args) == 0) {
++     chrCmd <- "Invalid command. e.g. <prompt>command.bat param.xml [YYYYMMDD] [YYYYMMDD]"
++     print(chrCmd)
++     quit(save="no", status=-1)
++ } # if (length(args
+> 
+> dtStart <- as.Date("1900-01-01")
+> dtEnd <- Sys.Date() - 1
+> 
+> chrFileParam <- args[1]
+> 
+> if (length(args) > 1) {
++     chrStartDate <- args[2]
++     dtStart <- as.Date(chrStartDate, "%Y%m%d")
++ } # if (length(args
+> 
+> if (length(args) > 2) {
++     chrEndDate <- args[3]
++     dtEnd <- as.Date(chrEndDate, "%Y%m%d")
++ } # if (length(args
+> 
+> rc <- qMain(chrFileParam, dtStart, dtEnd)
+Get parameter file '_sys_param_HK_GetStockPrice_yahoo.xml' began at 2021-12-31 11:45:27.
+Read parameter file '_sys_param_HK_GetStockPrice_yahoo.xml'.
+	Read parameter section 'rdata_save'
+	Read parameter section 'file_stock'
+	Read parameter section 'filepattern'
+	Read parameter section 'file_sql'
+Attached hk_yahoo.rdata at pos 2
+		Params = {, ...}
+		0 rows affected
+		Params = {, ...}
+		0 rows affected
+		Params = {, ...}
+		0 rows affected
+		Params = {, ...}
+		0 rows affected
+	Process 0001.HK
+	Process 0002.HK
+	Process 0003.HK
+	Process 0004.HK
+	Process 0005.HK
+	Process 0006.HK
+	Process 0008.HK
+	Process 0010.HK
+	Process 0011.HK
+	Process 0012.HK
+	Process 0013.HK
+Warning: 0013.HK download failed; trying again.
+Warning: Unable to import "0013.HK".
+argument "conn" is missing, with no default
+	Process 0014.HK
+	Process 0016.HK
+	Process 0017.HK
+	Process 0019.HK
+	Process 0023.HK
+	Process 0027.HK
+	Process 0043.HK
+	Process 0059.HK
+	Process 0066.HK
+`summarise()` has grouped output by 'SecID'. You can override using the `.groups` argument.
+	Create Temporary Table tmpYahooChg
+	Create Index tmpYahooChg
+		Params = {, ...}
+		0 rows affected
+	Delete YahooChg from tmpYahooChg
+		Params = {, ...}
+		5434 rows affected
+	Insert YahooChg from tmpYahooChg
+		Params = {, ...}
+		5567 rows affected
+	Create Temporary Table tmpYahooLastPrice
+	Delete from tmpYahooLastPrice
+		Params = {, ...}
+		19 rows affected
+	Insert from tmpYahooLastPrice
+		Params = {, ...}
+		19 rows affected
+		Params = {, ...}
+		0 rows affected
+		Params = {, ...}
+		0 rows affected
+	Overwrite the whole price history due to Close / AdjClose changes.
+	Create Index tmpStockPrices
+		Params = {, ...}
+		0 rows affected
+		Params = {, ...}
+		0 rows affected
+	Close of '0001.HK' changed since 2021-02-25
+		Params = {, ...}
+		0 rows affected
+	AdjClose of '0001.HK' changed since 2021-02-25
+	Create Index tmpSecID
+		Params = {, ...}
+		0 rows affected
+		Params = {, ...}
+		0 rows affected
+	Create Temporary Table tmpStockPrices
+	Create Index tmpStockPrices
+		Params = {, ...}
+		0 rows affected
+	Delete StockPrices from tmpStockPrices
+		Params = {, ...}
+		5235 rows affected
+	Insert from tmpStockPrices
+		Params = {, ...}
+		5368 rows affected
+Get parameter file '_sys_param_HK_GetStockPrice_yahoo.xml' finished at 2021-12-31 11:45:27.
+Time difference of 28.47865 secs
+There were 50 or more warnings (use warnings() to see the first 50)
+> if (rc != 0) {
++     quit(save="no", status=rc)
++ } # if (rc
+> #}
+> ## Debug (end)
+> 
+> ########
+> # Debug
+> ########
+> testDebug <- function()
++ {
++     setwd("F:/App/R/StockData_v2")
++     chrFileParam <- "_sys_param_HK_GetStockPrice_yahoo.xml"
++     dtStart <- as.Date("2020-01-01")
++     dtEnd <- as.Date("2021-03-01")
++ #    dtEnd <- Sys.Date() - 1
++     rc <- qMain(chrFileParam, dtStart, dtEnd)
++     # to be continued ...
++ }
+> 
+> 
+> proc.time()
+   user  system elapsed 
+  18.39    0.57   32.12 

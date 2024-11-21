@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<parameters>
+	<file_stock>F:/App/R/StockData_v2/HK.xlsx</file_stock>
+	<file_sql>F:/App/R/StockData_v2/db_stockprices_hk.xml</file_sql>
+</parameters>

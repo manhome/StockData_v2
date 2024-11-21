@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<parameters>
+	<rdata_save>hk_yahoo.rdata</rdata_save>
+	<file_stock>F:/App/R/StockData_v2/HK.xlsx</file_stock>
+	<filepattern>F:/App/R/StockData_v2/csv/yahoo/%s%s_%s_%s.csv</filepattern>
+	<db_stocks>F:\\App\\db\\test\\hk_stocks.db</db_stocks>
+	<db_stockprices>F:\\App\\db\\test\\hk_stockprices.db</db_stockprices>
+	<db_yahoo>F:\\App\\db\\test\\hk_yahoo.db</db_yahoo>
+</parameters>

@@ -1,0 +1,36 @@
+tmp_dfYahoo_0 <- tmp_dfYahoo
+
+tmp_df <- tmp_dfYahoo %>% filter(SecID=="0001.HK")
+
+tmp_df$OPEN <- 0.5 * tmp_df$OPEN
+tmp_df$HIGH <- 0.5 * tmp_df$HIGH
+tmp_df$LOW <- 0.5 * tmp_df$LOW
+tmp_df$CLOSE <- 0.5 * tmp_df$CLOSE
+tmp_df$ADJUSTED <- 0.5 * tmp_df$ADJUSTED
+tmp_df$VOLUME <- 2 * tmp_df$VOLUME
+
+tmp_dfYahoo_1 <- tmp_dfYahoo %>% filter(SecID!="0001.HK")
+tmp_dfYahoo <- bind_rows(tmp_df, tmp_dfYahoo_1)
+
+
+-----------------
+/*
+SELECT * FROM YahooLastPrice
+
+SELECT * FROM YahooChg
+WHERE SecID = '0001.HK'
+AND PriceDate BETWEEN '2020-12-31' AND '2021-02-26'
+ORDER BY PriceDate
+
+*/
+
+SELECT * FROM sp.StockPrices
+WHERE SecID = '0001.HK'
+--AND PriceDate BETWEEN '2019-12-31' AND '2021-02-26'
+AND PriceDate BETWEEN '2020-12-20' AND '2020-12-31'
+
+------------------
+> tmp_df <- data.frame(SecID=LETTERS[1], PriceDate=seq.Date(as.Date("2020-01-01"), by=1, length.out=4), Price=1:4, Volume=c(NA, 1, NA, 4), AdjPrice=5:8)
+> View(tmp_df)
+> tmp_df_1 <- tmp_df %>% mutate(Volume=coalesce(Volume, 0))
+> View(tmp_df_1)

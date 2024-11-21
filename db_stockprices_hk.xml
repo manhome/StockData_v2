@@ -1,0 +1,181 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<dbschema>
+    <sql>
+        <attach_db_stocks>
+            ATTACH DATABASE 'F:\App\db\test\hk_stocks.db' AS stocks
+        </attach_db_stocks>
+        <attach_db_stockprices>
+            ATTACH DATABASE 'F:\App\db\test\hk_stockprices.db' AS stockprices
+        </attach_db_stockprices>
+        <attach_db_yahoo>
+            ATTACH DATABASE 'F:\App\db\test\hk_yahoo.db' AS yahoo
+        </attach_db_yahoo>
+        <attach_db_quandl>
+            ATTACH DATABASE 'F:\App\db\test\hk_quandl.db' AS quandl
+        </attach_db_quandl>
+        <tmpQuandl_Create_Index>
+            CREATE INDEX idx_tmpQuandl ON tmpQuandl (SecID, PriceDate)
+        </tmpQuandl_Create_Index>
+        <tmpYahooChg_Create_Index>
+            CREATE INDEX idx_tmpYahooChg ON tmpYahooChg (SecID, PriceDate)
+        </tmpYahooChg_Create_Index>
+        <tmpStockPrices_Create_Index>
+            CREATE INDEX idx_tmpStockPrices ON tmpStockPrices (SecID, PriceDate, Close, AdjClose, Volume)
+        </tmpStockPrices_Create_Index>
+        <tmpSecID_Create_Index>
+            CREATE INDEX idx_tmpSecID ON tmpSecID (SecID)
+        </tmpSecID_Create_Index>
+        <Stocks_Delete_Temp>
+            DELETE FROM Stocks
+            WHERE EXISTS(SELECT 1 FROM tmpStocks a2
+                WHERE a2.SecID = Stocks.SecID)
+        </Stocks_Delete_Temp>
+        <Stocks_Insert_Temp>
+            INSERT INTO Stocks (SecID, Name, Ccy, Exch_yahoo, Exch_quandl, SecID_yahoo, SecID_quandl)
+            SELECT SecID, Name, Ccy, Exch_yahoo, Exch_quandl, SecID_yahoo, SecID_quandl
+            FROM tmpStocks a1
+            WHERE NOT EXISTS(SELECT 1 FROM Stocks a2 WHERE a2.SecID = a1.SecID)
+        </Stocks_Insert_Temp>
+        <Quandl_Select_MaxDate>
+            SELECT a1.SecID_yahoo, a1.SecID_quandl, a1.SecID, a1.Exch_yahoo,
+                IFNULL((SELECT MAX(PriceDate) FROM Quandl a2
+                    WHERE a2.SecID = a1.SecID_yahoo), '1900-01-01') AS PriceDate
+            FROM Stocks a1
+        </Quandl_Select_MaxDate>
+        <Quandl_Delete_Temp>
+            DELETE FROM Quandl
+            WHERE EXISTS(SELECT 1 FROM tmpQuandl a2
+                WHERE a2.SecID = Quandl.SecID
+                AND Quandl.PriceDate > (SELECT MIN(a3.PriceDate) FROM tmpQuandl a3
+                    WHERE a3.SecID = a2.SecID))
+        </Quandl_Delete_Temp>
+        <Quandl_Insert_Temp>
+            INSERT INTO Quandl (SecID, PriceDate, High, Low, Close,
+                Volume, Turnover, PrevClose, Bid, Ask)
+            SELECT SecID, PriceDate, [HIGH], [LOW], [NOMINAL PRICE],
+                [SHARE VOLUME (000)], [TURNOVER (000)], [PREVIOUS CLOSE], Bid, Ask
+            FROM tmpQuandl a1
+            WHERE NOT EXISTS(SELECT 1 FROM Quandl a2
+                WHERE a2.SecID = a1.SecID AND a2.PriceDate = a1.PriceDate)
+        </Quandl_Insert_Temp>
+        <YahooChg_Select_MaxDate>
+            SELECT a1.SecID_yahoo, a1.SecID, a1.Exch_yahoo,
+                IFNULL((SELECT MAX(PriceDate) FROM YahooChg a2
+                    WHERE a2.SecID = a1.SecID_yahoo
+              		AND a2.Volume != 0), '1900-01-01') AS PriceDate
+            FROM Stocks a1
+        </YahooChg_Select_MaxDate>
+        <YahooChg_Delete_Temp>
+            DELETE FROM YahooChg
+            WHERE EXISTS(SELECT 1 FROM tmpYahooChg a2
+                WHERE a2.SecID = YahooChg.SecID
+                AND YahooChg.PriceDate > (SELECT MIN(a3.PriceDate) FROM tmpYahooChg a3
+                WHERE a3.SecID = a2.SecID))
+        </YahooChg_Delete_Temp>
+        <YahooChg_Insert_Temp>
+            INSERT INTO YahooChg (SecID, PriceDate, Open, High, Low, Close, Volume, AdjClose)
+            SELECT DISTINCT SecID, PriceDate, OPEN, HIGH, LOW, CLOSE, VOLUME, ADJUSTED
+            FROM tmpYahooChg a1
+            WHERE a1.CLOSE IS NOT NULL
+            AND NOT EXISTS(SELECT 1 FROM YahooChg a2
+                WHERE a2.SecID = a1.SecID AND a2.PriceDate = a1.PriceDate)
+        </YahooChg_Insert_Temp>
+        <YahooLastPrice_Delete_Temp>
+            DELETE FROM YahooLastPrice
+            WHERE EXISTS(SELECT 1 FROM tmpYahooLastPrice a2
+                WHERE a2.SecID = YahooLastPrice.SecID
+                AND a2.PriceDate >= YahooLastPrice.PriceDate)
+        </YahooLastPrice_Delete_Temp>
+        <YahooLastPrice_Insert_Temp>
+            INSERT INTO YahooLastPrice (SecID, PriceDate, Open, High, Low, Close, Volume, AdjClose)
+            SELECT SecID, PriceDate, OPEN, HIGH, LOW, CLOSE, VOLUME, ADJUSTED
+            FROM tmpYahooLastPrice a1
+            WHERE NOT EXISTS(SELECT 1 FROM YahooLastPrice a2
+                WHERE a2.SecID = a1.SecID AND a2.PriceDate >= a1.PriceDate)
+        </YahooLastPrice_Insert_Temp>
+        <YahooChg_Select_All>
+            SELECT a1.SecID, a1.PriceDate, a1.Open, a1.High, a1.Low, a1.Close,
+            a1.Volume, a1.AdjClose
+            FROM YahooChg a1
+            WHERE EXISTS(SELECT 1 FROM YahooLastPrice a2
+                WHERE a2.SecID = a1.SecID)
+        </YahooChg_Select_All>
+        <tmpStockPriceDate_Select>
+            SELECT a1.SecID,
+            IFNULL(
+                (SELECT MAX(a2.PriceDate) FROM StockPrices a2
+                WHERE a2.SecID = a1.SecID AND a2.Volume > 0
+                AND (SELECT MAX(a3.PriceDate) FROM StockPrices a3
+                    WHERE a3.SecID = a1.SecID AND a3.Volume > 0)
+                    > a2.PriceDate),
+                    '1900-01-01') AS PriceDate
+            FROM YahooLastPrice a1
+        </tmpStockPriceDate_Select>
+        <tmpYahooChg_Select>
+            SELECT a1.SecID, a1.PriceDate, a1.Open, a1.High, a1.Low, a1.Close, a1.Volume, a1.AdjClose
+            FROM YahooChg a1
+            WHERE EXISTS(SELECT 1 FROM YahooLastPrice a2
+                WHERE a2.SecID = a1.SecID
+                    AND a1.PriceDate >=
+                    IFNULL(
+                        (SELECT MAX(a3.PriceDate) FROM StockPrices a3
+                        WHERE a3.SecID = a2.SecID AND a3.Volume > 0
+                        AND (SELECT MAX(a4.PriceDate) FROM StockPrices a4
+                            WHERE a4.SecID = a2.SecID AND a4.Volume > 0)
+                            > a3.PriceDate),
+                            '1900-01-01'))
+        </tmpYahooChg_Select>
+        <tmpYahooLastPrice_Select>
+            SELECT a1.SecID, a1.PriceDate, a1.Open, a1.High, a1.Low, a1.Close, a1.Volume, a1.AdjClose
+            FROM YahooLastPrice a1
+            WHERE a1.Volume > 0
+        </tmpYahooLastPrice_Select>
+        <tmpStockCloseChg_SecID>
+            SELECT SecID, MIN(s0.PriceDate) FROM StockPrices s0
+            WHERE EXISTS(SELECT 1 FROM tmpStockPrices t1
+                WHERE t1.SecID = s0.SecID
+                AND t1.PriceDate = s0.PriceDate
+                AND abs(s0.Close - t1.Close) >= 0.005)
+            GROUP BY SecID
+            ORDER BY SecID
+        </tmpStockCloseChg_SecID>
+        <tmpStockAdjCloseChg_SecID>
+            SELECT SecID, MIN(s0.PriceDate) FROM StockPrices s0
+            WHERE EXISTS(SELECT 1 FROM tmpStockPrices t1
+                WHERE t1.SecID = s0.SecID
+                AND t1.PriceDate = s0.PriceDate
+                AND abs(s0.AdjClose - t1.AdjClose) >= 0.005)
+            GROUP BY SecID
+            ORDER BY SecID
+        </tmpStockAdjCloseChg_SecID>
+        <tmpYahooChg_Select_SecID>
+            SELECT a1.SecID, a1.PriceDate, a1.Open, a1.High, a1.Low, a1.Close, a1.Volume, a1.AdjClose
+            FROM YahooChg a1
+            WHERE EXISTS(SELECT 1 FROM tmpSecID t1
+                WHERE t1.SecID = a1.SecID)
+        </tmpYahooChg_Select_SecID>
+        <StockPrices_Delete_Temp>
+            DELETE FROM StockPrices
+            WHERE EXISTS(SELECT 1 FROM tmpStockPrices t1
+                WHERE t1.SecID = StockPrices.SecID
+                AND StockPrices.PriceDate >= t1.PriceDate)
+        </StockPrices_Delete_Temp>
+        <StockPrices_Insert_Temp>
+            INSERT INTO StockPrices (SecID, PriceDate, Open, High, Low, Close, Volume, AdjClose)
+            SELECT SecID, PriceDate, Open, High, Low, Close, Volume, AdjClose
+            FROM tmpStockPrices a1
+            WHERE NOT EXISTS(SELECT 1 FROM StockPrices a2
+                WHERE a2.SecID = a1.SecID
+                AND a2.PriceDate = a1.PriceDate)
+        </StockPrices_Insert_Temp>
+        <StockPrices_Turnover_Update>
+            UPDATE StockPrices
+            SET Turnover = (SELECT q1.Turnover FROM Quandl q1
+                WHERE q1.SecID = StockPrices.SecID
+                AND q1.PriceDate = StockPrices.PriceDate)
+            WHERE Turnover IS NULL
+        </StockPrices_Turnover_Update>
+<!--
+-->
+    </sql>
+</dbschema>

@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<parameters>
+	<rdata_save>quandl.rdata</rdata_save>
+	<file_stock>F:/App/R/StockData_v2/HK.xlsx</file_stock>
+	<filepattern>F:/App/R/StockData_v2/csv/quandl/%s%s_%s_%s.csv</filepattern>
+	<file_sql>F:/App/R/StockData_v2/db_stockprices_hk.xml</file_sql>
+	<quandl_api_key>HQxtyfg-HKJwxDXYhcHc</quandl_api_key>
+</parameters>
